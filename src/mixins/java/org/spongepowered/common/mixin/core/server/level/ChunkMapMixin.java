@@ -50,23 +50,32 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.Slice;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.spongepowered.common.SpongeCommon;
+import org.spongepowered.common.accessor.server.level.ServerChunkCacheAccessor;
+import org.spongepowered.common.bridge.world.DistanceManagerBridge;
 import org.spongepowered.common.bridge.world.level.chunk.LevelChunkBridge;
 import org.spongepowered.common.bridge.world.level.storage.PrimaryLevelDataBridge;
+import org.spongepowered.common.bridge.world.server.ChunkMapBridge;
 import org.spongepowered.common.event.ShouldFire;
 import org.spongepowered.common.event.tracking.PhaseTracker;
 import org.spongepowered.common.util.Constants;
 import org.spongepowered.math.vector.Vector3i;
 
 @Mixin(ChunkMap.class)
-public abstract class ChunkMapMixin {
+public abstract class ChunkMapMixin implements ChunkMapBridge {
 
     // @formatter:off
     @Shadow @Final private ServerLevel level;
     // @formatter:on
 
+    public DistanceManagerBridge bridge$distanceManager() {
+        // The ticket manager on this object is a package-private class and isn't accessible from here
+        // - @Shadow doesn't work because it seems to need the exact type.
+        return (DistanceManagerBridge) ((ServerChunkCacheAccessor) this.level.getChunkSource()).accessor$distanceManager();
+    }
+
     @Redirect(method = "save",
             at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/ai/village/poi/PoiManager;flush(Lnet/minecraft/world/level/ChunkPos;)V"))
-    private void impl$useSerializationBehaviorForPOI(PoiManager pointOfInterestManager, ChunkPos p_219112_1_) {
+    private void impl$useSerializationBehaviorForPOI(final PoiManager pointOfInterestManager, final ChunkPos p_219112_1_) {
         final PrimaryLevelDataBridge infoBridge = (PrimaryLevelDataBridge) this.level.getLevelData();
         final SerializationBehavior serializationBehavior = infoBridge.bridge$serializationBehavior().orElse(SerializationBehavior.AUTOMATIC);
         if (serializationBehavior == SerializationBehavior.AUTOMATIC || serializationBehavior == SerializationBehavior.MANUAL) {
@@ -77,7 +86,7 @@ public abstract class ChunkMapMixin {
     @Redirect(method = "save", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/world/level/chunk/storage/ChunkSerializer;write(Lnet/minecraft/server/level/ServerLevel;"
                     + "Lnet/minecraft/world/level/chunk/ChunkAccess;)Lnet/minecraft/nbt/CompoundTag;"))
-    private CompoundTag impl$useSerializationBehaviorForChunkSave(ServerLevel worldIn, ChunkAccess chunkIn) {
+    private CompoundTag impl$useSerializationBehaviorForChunkSave(final ServerLevel worldIn, final ChunkAccess chunkIn) {
         final PrimaryLevelDataBridge infoBridge = (PrimaryLevelDataBridge) this.level.getLevelData();
         final SerializationBehavior serializationBehavior = infoBridge.bridge$serializationBehavior().orElse(SerializationBehavior.AUTOMATIC);
         if (serializationBehavior == SerializationBehavior.AUTOMATIC || serializationBehavior == SerializationBehavior.MANUAL) {
@@ -89,7 +98,7 @@ public abstract class ChunkMapMixin {
 
     @Redirect(method = "save", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/server/level/ChunkMap;write(Lnet/minecraft/world/level/ChunkPos;Lnet/minecraft/nbt/CompoundTag;)V"))
-    private void impl$doNotWriteIfWeHaveNoData(ChunkMap chunkManager, ChunkPos pos, CompoundTag compound) {
+    private void impl$doNotWriteIfWeHaveNoData(final ChunkMap chunkManager, final ChunkPos pos, final CompoundTag compound) {
         if (compound == null) {
             return;
         }
@@ -112,7 +121,7 @@ public abstract class ChunkMapMixin {
             SpongeCommon.postEvent(event);
         }
 
-        for (Direction dir : Constants.Chunk.CARDINAL_DIRECTIONS) {
+        for (final Direction dir : Constants.Chunk.CARDINAL_DIRECTIONS) {
             final Vector3i neighborPos = chunkPos.add(dir.asBlockOffset());
             final ChunkAccess neighbor = this.level.getChunk(neighborPos.getX(), neighborPos.getZ(), ChunkStatus.EMPTY, true);
             if (neighbor instanceof LevelChunk) {
@@ -180,7 +189,7 @@ public abstract class ChunkMapMixin {
             SpongeCommon.postEvent(loadEvent);
         }
 
-        for (Direction dir : Constants.Chunk.CARDINAL_DIRECTIONS) {
+        for (final Direction dir : Constants.Chunk.CARDINAL_DIRECTIONS) {
             final Vector3i neighborPos = chunkPos.add(dir.asBlockOffset());
             ChunkAccess neighbor = this.level.getChunk(neighborPos.getX(), neighborPos.getZ(), ChunkStatus.EMPTY, true);
             if (neighbor instanceof ImposterProtoChunk) {
